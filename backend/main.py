@@ -2484,12 +2484,12 @@ def get_daily_summary(
         summary = generate_daily_summary(context)
     except Exception as e:
         # Without an API key this is the expected path, not a server fault.
-        if not os.getenv("ANTHROPIC_API_KEY"):
+        if not os.getenv("XAI_API_KEY"):
             return {
                 "date": date,
                 "cached": False,
                 "unavailable": True,
-                "narrative": "Add ANTHROPIC_API_KEY to backend/.env to generate a review for this day.",
+                "narrative": "Add XAI_API_KEY to backend/.env to generate a review for this day.",
             }
         raise HTTPException(status_code=500, detail=str(e))
 

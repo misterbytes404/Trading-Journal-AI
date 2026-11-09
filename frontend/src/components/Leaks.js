@@ -287,9 +287,9 @@ export default function Leaks({ data, params, onOpenDetail, children }) {
         </p>
         {headline && <KeptBar net={data.net_pnl} cost={data.total_cost} />}
         <p className="lk-note">
-          {explain.status === 'loading' && 'Claude is writing the explanations. The plain numbers are shown until then.'}
-          {explain.status === 'ready' && 'Explanations written by Claude from these numbers only.'}
-          {explain.status === 'error' && `Claude's explanations are unavailable (${explain.error}). Showing the plain numbers.`}
+          {explain.status === 'loading' && 'Grok is writing the explanations. The plain numbers are shown until then.'}
+          {explain.status === 'ready' && 'Explanations written by Grok from these numbers only.'}
+          {explain.status === 'error' && `Grok's explanations are unavailable (${explain.error}). Showing the plain numbers.`}
           {explain.status === 'stale' && 'Your trades changed while this loaded. Reopen the tab for the explanations.'}
           {' '}Diary fields (tags, emotion, strategy, source) cover {n0(cov.diary_trades)} of {n0(cov.trades)} trades,
           so findings marked From diary notes rest on those trades only.

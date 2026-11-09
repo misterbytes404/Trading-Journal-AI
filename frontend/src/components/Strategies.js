@@ -189,7 +189,7 @@ export default function Strategies({ accountId }) {
           </pre>
         ) : (
           <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-            Click "Generate Insights" to get personalized coaching feedback from Claude AI based on your trading data.
+            Click "Generate Insights" to get personalized coaching feedback from Grok based on your trading data.
           </div>
         )}
       </div>

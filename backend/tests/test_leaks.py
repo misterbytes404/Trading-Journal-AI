@@ -341,7 +341,7 @@ def test_explain_caches_and_falls_back(client, monkeypatch):
     conn.close()
 
     def broken(findings):
-        raise ValueError("ANTHROPIC_API_KEY is not set in .env file")
+        raise ValueError("XAI_API_KEY is not set in .env file")
 
     conn = main.get_db()
     conn.execute("DELETE FROM leak_explanations")
@@ -349,7 +349,7 @@ def test_explain_caches_and_falls_back(client, monkeypatch):
     conn.close()
     monkeypatch.setattr(main, 'explain_leaks', broken)
     body = c.get('/api/leaks/explain', params={'account_id': 1}).json()
-    assert body['sentences'] == {} and 'ANTHROPIC_API_KEY' in body['error']
+    assert body['sentences'] == {} and 'XAI_API_KEY' in body['error']
 
 
 def test_setup_slice_uses_the_playbook_setup_name(client):

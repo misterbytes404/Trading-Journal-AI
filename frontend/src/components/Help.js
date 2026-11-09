@@ -210,7 +210,7 @@ const FEATURES = [
   {
     name: 'Leaks',
     icon: '🔍',
-    description: 'A Reports tab that ranks the groups of your trades by what they cost: up to three leaks, anything new in the last 30 days, the two groups working best, trade management and costs. Claude writes one sentence per finding from the numbers only.',
+    description: 'A Reports tab that ranks the groups of your trades by what they cost: up to three leaks, anything new in the last 30 days, the two groups working best, trade management and costs. Grok writes one sentence per finding from the numbers only.',
     tips: [
       'It uses the page filters, so pick an account and a date range first.',
       'Show N trades lists the trades behind a finding; a row opens the trade, and Back returns to Leaks.',
@@ -229,7 +229,7 @@ const FEATURES = [
   {
     name: 'Diary',
     icon: '📓',
-    description: 'AI-powered trade diary. Upload handwritten notes, screenshots, or typed text. Claude extracts setup, entry/exit reason, emotional state, mistakes, and R-multiple.',
+    description: 'AI-powered trade diary. Upload handwritten notes, screenshots, or typed text. Grok extracts setup, entry/exit reason, emotional state, mistakes, and R-multiple.',
     tips: [
       'The more detail you write in your pre/post-market notes, the better the AI extraction.',
       'Diary entries are matched to trades automatically by ticker and date.',

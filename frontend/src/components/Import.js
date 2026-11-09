@@ -44,7 +44,7 @@ const BROKER_HELP = {
   thinkorswim: <>Export from Thinkorswim desktop: <em>Monitor → Account Statement → export icon → Export to File (CSV)</em></>,
   ibkr: <>Export from IBKR Client Portal: <em>Performance &amp; Reports → Statements → Activity → pick the period → Download as CSV</em></>,
   tradovate: <>The Orders export (columns like <em>orderId, B/S, Contract, Filled Qty, Avg Fill Price, Fill Time</em>). Orders with a filled quantity are imported. This export has no commissions, so fees come in as $0.</>,
-  ninjatrader: <>The Executions grid exported to CSV (columns like <em>Instrument, Action, Quantity, Price, Time, Commission, Account</em>).</>,
+  ninjatrader: <>NinjaTrader 8: Control Center, then New, then Trade Performance. Set Display to Executions, pick the account and dates, Generate, then right-click the grid and Export as CSV. The file needs columns like <em>Instrument, Action, Quantity, Price, Time, Commission, Account</em>. This importer reads futures fills. Set the timezone below to the zone NinjaTrader is showing.</>,
   topstepx: <>The trades export (columns like <em>ContractName, Side, Size, ExecutePrice, FilledAt</em>).</>,
   webull: <>The order history export (columns like <em>Symbol, Side, Status, Filled, Avg Price, Filled Time</em>). Stocks and options.</>,
   tastytrade: <>History, then Transactions, pick the dates and download the CSV (scroll to the end first so every row is loaded). Stocks and options, including expirations and assignments. Cash movements are left out.</>,
@@ -301,7 +301,7 @@ export default function Import({ accounts, accountId }) {
 
   return (
     <div>
-      <PageHeader title="Import" subtitle="Bring in your broker executions, or have Claude read a trading diary." />
+      <PageHeader title="Import" subtitle="Bring in your broker executions, or have Grok read a trading diary." />
 
       <div className="grid-2">
 
@@ -497,14 +497,14 @@ export default function Import({ accounts, accountId }) {
             disabled={analyzing || !diaryFile || !diaryAccountId || !diaryDate}
           >
             {analyzing
-              ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Analyzing with Claude AI...</>
+              ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Analyzing with Grok...</>
               : <><Upload size={16} /> Analyze Diary</>
             }
           </button>
 
           {analyzing && (
             <div role="status" style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center' }}>
-              Claude is reading your diary. This takes 10 to 20 seconds...
+              Grok is reading your diary. This takes 10 to 20 seconds...
             </div>
           )}
 
@@ -527,7 +527,7 @@ export default function Import({ accounts, accountId }) {
           )}
 
           <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
-            Claude AI will read your handwritten or typed notes and extract strategy, stops, R-multiples, emotional state, and more.
+            Grok will read your handwritten or typed notes and extract strategy, stops, R-multiples, emotional state, and more.
           </div>
         </section>
       </div>

@@ -7,7 +7,7 @@
 
 A trading journal that runs on your own machine. Import your broker's CSV and it rebuilds your
 round-trip trades, tracks the numbers that matter (win rate, profit factor, expectancy, drawdown,
-MFE/MAE, exit efficiency), and, if you want it to, uses Claude to read your trading diary and grade
+MFE/MAE, exit efficiency), and, if you want it to, uses Grok to read your trading diary and grade
 your days on process.
 
 - **Your data stays on your computer.** One SQLite file, no account, no telemetry.
@@ -122,8 +122,8 @@ it does not predict future results.
 
 The rules are plain code in `backend/leaks.py` (pure functions, tested in
 `backend/tests/test_leaks.py`), and `/api/leaks` loads the same trades as `/api/reports` (net P&L not
-zero, same account and date filters), so the two reconcile. With an Anthropic key,
-`/api/leaks/explain` asks Claude for one sentence per finding from the numbers only, cached in the
+zero, same account and date filters), so the two reconcile. With an xAI key,
+`/api/leaks/explain` asks Grok for one sentence per finding from the numbers only, cached in the
 `leak_explanations` table under a hash of those numbers, so it reruns only when they change. Without
 a key the tab keeps its plain template sentences.
 
@@ -146,13 +146,13 @@ Your trading journal database, imported broker data, notes, and uploaded files a
 
 Some features use third-party APIs and are completely optional.
 
-**Claude / Anthropic**
+**Grok / xAI**
 
-When you use AI analysis or the Brain assistant, the information required to answer your request may be sent to Anthropic's API. This can include trade information, journal context, or images you explicitly ask the AI to analyze.
+When you use AI analysis or the Brain assistant, the information required to answer your request may be sent to xAI's API. This can include trade information, journal context, or images you explicitly ask the AI to analyze. Those calls do not turn on web search, and the request is not stored on xAI's servers.
 
 With a key set, opening Reports > Leaks sends each finding's group name and totals (trade count, net, per-trade average, win rate) to write its one-sentence explanation. Individual trades and trade ids are not sent.
 
-The core journal, trade reconstruction, P&L calculations, reports, and statistics do not require Claude.
+The core journal, trade reconstruction, P&L calculations, reports, and statistics do not require Grok.
 
 **Market data (Alpaca)**
 
@@ -208,7 +208,7 @@ Trade reconstruction, P&L, commissions, statistics, and other core trading calcu
   between bars and full numeric tables, and rows under ten trades are marked thin so a one-trade
   strategy at 100% cannot sit at the top. A Leaks tab ranks what costs you money
   (see [Leak Finder](#leak-finder))
-- **Diary**: upload handwritten notes, screenshots, or typed text; Claude extracts strategy, stops, R-multiples, emotional state, and mistakes, and matches them to your actual trades
+- **Diary**: upload handwritten notes, screenshots, or typed text; Grok extracts strategy, stops, R-multiples, emotional state, and mistakes, and matches them to your actual trades
 - **Day Review**: the session drawn as one picture, running P&L from the open to the close with every
   trade marked where you entered it, plus an AI coaching report graded on process rather than P&L.
   Each trade's grade carries the reason it was given
@@ -453,13 +453,13 @@ Copy `.env.example` to `backend/.env` and fill in the keys yourself, or ask Clau
 
 **Add your API keys:**
 
-> Copy .env.example to backend/.env. Then ask me for my Anthropic API key, and after that my Alpaca key ID and secret key, one at a time. Write each one into the matching line in backend/.env exactly as I paste it. Do not print any of them back to me or log them anywhere else. When all three are in, tell me to restart launch.bat.
+> Copy .env.example to backend/.env. Then ask me for my xAI API key, and after that my Alpaca key ID and secret key, one at a time. Write each one into the matching line in backend/.env exactly as I paste it. Do not print any of them back to me or log them anywhere else. When all three are in, tell me to restart launch.bat.
 
 Everything is optional; the app runs without any keys and tells you exactly which feature each missing key disables.
 
 | Variable | Enables |
 |---|---|
-| `ANTHROPIC_API_KEY` | Diary analysis, Day Review, Weekly Summary, Insights, and the Brain chat |
+| `XAI_API_KEY` | Diary analysis, Day Review, Weekly Summary, Insights, and the Brain chat, using Grok |
 | `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` | Intraday price charts on each trade and Exit Lab's historical minute prices (free Alpaca account works) |
 | `ALPACA_ENV_FILE` | Optional. Path to another `.env` file that holds the Alpaca keys for Exit Lab. When set, Exit Lab reads its keys only from that file. |
 | `ALPACA_DATA_FEED` | Optional, defaults to `iex` (free-tier data). Set to `sip` only if your key has a paid market-data subscription. |

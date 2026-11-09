@@ -1,15 +1,22 @@
-import anthropic
 import base64
+import io
 import json
 import os
 import re
 from pathlib import Path
+
+import httpx
 from dotenv import load_dotenv
 from database import in_marks
 
 load_dotenv()
 
-MODEL = "claude-opus-5-5"
+# Grok 4.7 accepts text and images on the Responses API. Override with XAI_MODEL.
+MODEL = os.getenv("XAI_MODEL") or "grok-4.7"
+XAI_RESPONSES_URL = "https://api.x.ai/v1/responses"
+# Journal calls are structured extraction, not open research. Low keeps them
+# from sitting in a long reasoning pass. A caller can still ask for more.
+_DEFAULT_EFFORT = os.getenv("XAI_REASONING_EFFORT") or "low"
 
 DIARY_SYSTEM_PROMPT = """You are an expert trading coach analyzing a trader's handwritten or typed diary entry.
 
@@ -147,30 +154,150 @@ def normalize_strategy(raw):
     return t
 
 
-def get_client() -> anthropic.Anthropic:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key or api_key == "your_anthropic_api_key_here":
-        raise ValueError("ANTHROPIC_API_KEY is not set in .env file")
-    return anthropic.Anthropic(api_key=api_key)
+class _TextBlock:
+    def __init__(self, text: str):
+        self.type = "text"
+        self.text = text
 
+
+class _GrokResponse:
+    """The slice of a Responses API payload the rest of this module reads."""
+
+    def __init__(self, text: str, stop_reason: str):
+        self.content = [_TextBlock(text)]
+        self.stop_reason = stop_reason
+
+
+def _api_key() -> str:
+    api_key = os.getenv("XAI_API_KEY")
+    if not api_key or api_key == "your_xai_api_key_here":
+        raise ValueError("XAI_API_KEY is not set in .env file")
+    return api_key
+
+
+def _jpeg_data_url(media_type: str, data_b64: str) -> str:
+    """Grok image input is JPEG or PNG. Other diary photos are re-encoded."""
+    media_type = (media_type or "image/jpeg").lower()
+    if media_type == "image/jpg":
+        media_type = "image/jpeg"
+    if media_type in ("image/jpeg", "image/png"):
+        return f"data:{media_type};base64,{data_b64}"
+    try:
+        from PIL import Image
+        raw = base64.b64decode(data_b64)
+        img = Image.open(io.BytesIO(raw))
+        img.seek(0)
+        img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        encoded = base64.standard_b64encode(buf.getvalue()).decode("ascii")
+    except Exception as exc:
+        raise ValueError(
+            "Grok reads JPEG and PNG diary photos. Save this one as JPEG or PNG and upload it again."
+        ) from exc
+    return f"data:image/jpeg;base64,{encoded}"
+
+
+def to_grok_input(messages: list) -> list:
+    """Anthropic-style message content, as the Responses API expects it."""
+    converted = []
+    for msg in messages:
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            converted.append({"role": msg.get("role", "user"), "content": content})
+            continue
+        parts = []
+        for block in content:
+            kind = block.get("type")
+            if kind == "text":
+                parts.append({"type": "input_text", "text": block.get("text") or ""})
+            elif kind == "image":
+                source = block.get("source") or {}
+                parts.append({
+                    "type": "input_image",
+                    "image_url": _jpeg_data_url(source.get("media_type"), source.get("data") or ""),
+                    "detail": "high",
+                })
+        converted.append({"role": msg.get("role", "user"), "content": parts})
+    return converted
+
+
+def grok_response_from_payload(data: dict) -> _GrokResponse:
+    if data.get("error"):
+        err = data["error"]
+        message = err.get("message") if isinstance(err, dict) else str(err)
+        raise ValueError(f"Grok request failed: {message}")
+    texts = []
+    for item in data.get("output") or []:
+        if item.get("type") != "message":
+            continue
+        for part in item.get("content") or []:
+            if part.get("type") == "output_text" and part.get("text"):
+                texts.append(part["text"])
+    text = "".join(texts).strip()
+    status = data.get("status")
+    details = data.get("incomplete_details") or {}
+    reason = details.get("reason") if isinstance(details, dict) else ""
+    if status == "incomplete" and reason and "max" in reason:
+        return _GrokResponse(text, "max_tokens")
+    if status == "incomplete":
+        raise ValueError(f"Grok response was incomplete ({reason or status}).")
+    if not text:
+        raise ValueError(f"Grok returned no text (status {status}).")
+    return _GrokResponse(text, "end_turn")
+
+
+class _Messages:
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+
+    def create(self, *, model, max_tokens, messages, system=None, output_config=None, **_ignored):
+        effort = _DEFAULT_EFFORT
+        if isinstance(output_config, dict) and output_config.get("effort"):
+            effort = output_config["effort"]
+        body = {
+            "model": os.getenv("XAI_MODEL") or model or MODEL,
+            "input": to_grok_input(messages),
+            "max_output_tokens": max_tokens,
+            # Do not keep the diary, the trades, or the reply on xAI's servers.
+            "store": False,
+            "reasoning": {"effort": effort},
+        }
+        if system:
+            body["instructions"] = system
+        try:
+            resp = httpx.post(
+                XAI_RESPONSES_URL,
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json=body,
+                timeout=180.0,
+            )
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text[:500]
+            raise ValueError(f"Grok request failed ({exc.response.status_code}): {detail}") from exc
+        except httpx.HTTPError as exc:
+            raise ValueError(f"Grok request failed: {exc}") from exc
+        return grok_response_from_payload(resp.json())
+
+
+class _GrokClient:
+    def __init__(self, api_key: str):
+        self.messages = _Messages(api_key)
+
+
+def get_client() -> _GrokClient:
+    return _GrokClient(_api_key())
 
 
 def response_text(response) -> str:
-    """Concatenate the text blocks of a Messages API response.
-
-    `response.content` is a list of blocks and the FIRST one is not necessarily
-    text. On Claude Opus 5.5 adaptive thinking is on by default, so content[0] is
-    typically a ThinkingBlock — indexing it raises
-    "'ThinkingBlock' object has no attribute 'text'". Always select by .type.
-    """
+    """Concatenate the text blocks of a model response. Select by type, never by position."""
     parts = [b.text for b in response.content if getattr(b, "type", None) == "text"]
     return "".join(parts).strip()
 
 
-# The per-trade JSON grows with the number of diary lines, and on Opus 5.5 adaptive
-# thinking spends from the SAME max_tokens budget, so a tight cap truncates the
-# JSON mid-string and json.loads() reports a meaningless column number instead of
-# the real problem. Sized for a full day of trades plus thinking.
+# Sized for a full day of trades. On the Responses API this cap is the visible
+# answer only; reasoning tokens are counted separately.
 DIARY_MAX_TOKENS = 16000
 
 

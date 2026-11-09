@@ -1,9 +1,7 @@
 import json
 import re
 from database import in_marks
-from ai_analysis import get_client, response_text, raise_if_truncated, DIARY_MAX_TOKENS
-
-MODEL = "claude-opus-5-5"
+from ai_analysis import get_client, response_text, raise_if_truncated, DIARY_MAX_TOKENS, MODEL
 
 DAILY_SUMMARY_PROMPT = """You are a professional trading coach producing an end-of-day performance review for a day trader.
 
@@ -133,7 +131,7 @@ def build_daily_context(conn, date: str, account_id) -> dict:
 
 
 def generate_daily_summary(context: dict) -> dict:
-    """Call Claude to generate a structured daily summary."""
+    """Call Grok to generate a structured daily summary."""
     client = get_client()
 
     date = context["date"]
@@ -190,8 +188,6 @@ Generate the daily coaching summary JSON."""
 
     response = client.messages.create(
         model=MODEL,
-        # 4096 was too tight: adaptive thinking spends from the same budget, so a
-        # 10-trade day cut the JSON off mid-string.
         max_tokens=DIARY_MAX_TOKENS,
         output_config={"effort": "medium"},
         system=DAILY_SUMMARY_PROMPT,
