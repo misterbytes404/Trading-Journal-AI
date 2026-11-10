@@ -1,7 +1,7 @@
 import json
 import re
 from database import in_marks
-from ai_analysis import get_client, response_text, raise_if_truncated, DIARY_MAX_TOKENS, MODEL
+from ai_analysis import get_client, response_text, raise_if_truncated, side_for_ai, DIARY_MAX_TOKENS, MODEL
 
 DAILY_SUMMARY_PROMPT = """You are a professional trading coach producing an end-of-day performance review for a day trader.
 
@@ -147,7 +147,7 @@ def generate_daily_summary(context: dict) -> dict:
         first_time = next((e.get("time", "") for e in execs), "")
         line = (
             f"  - trade_group: {t['trade_group']} | ticker: {t['ticker']} | "
-            f"side: {t['side']} | net_pnl: ${t.get('net_pnl') or 0:.2f} | "
+            f"side: {side_for_ai(t)} | net_pnl: ${t.get('net_pnl') or 0:.2f} | "
             f"strategy: {t.get('strategy') or 'N/A'} | "
             f"r_multiple: {t.get('r_multiple') or 'N/A'} | "
             f"stop_loss: {t.get('stop_loss') or 'N/A'} | "

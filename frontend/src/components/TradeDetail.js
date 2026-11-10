@@ -1,4 +1,5 @@
 import { excursionText } from '../utils/excursions';
+import { pointValue, loadPointValues } from '../pointValue';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, PlusCircle, Trash2, Pencil } from 'lucide-react';
 import { tradesApi, chartApi } from '../api';
@@ -6,6 +7,7 @@ import TradingChart from './TradingChart';
 import TradeExits from './exitlab/TradeExits';
 import { DemoLabel } from './exitlab/shared';
 import { PageHeader, KpiStrip, KpiCell, MoneyValue, PanelHead } from './ui';
+import { sideInfo, sideLabel } from '../sideLabel';
 
 const fmt$ = (v) => {
   if (v == null) return '—';
@@ -26,6 +28,18 @@ function parseExecs(trade) {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
+// Dollars per point: 100 for an option; for a closed future the point value it was booked
+// with (gross P&L over the price move), else the futures table; 1 for a stock.
+function tradeMultiplier(trade, avgEntry, avgExit, qty) {
+  const kind = (trade.instrument_type || 'STOCK').toUpperCase();
+  if (kind === 'FUTURE' && avgEntry != null && avgExit != null && qty && trade.gross_pnl) {
+    const move = (trade.side === 'SHORT' ? avgEntry - avgExit : avgExit - avgEntry) * qty;
+    const implied = Math.abs(move) > 1e-9 ? trade.gross_pnl / move : null;
+    if (implied && implied > 0) return implied;
+  }
+  return pointValue(kind, trade.ticker);
+}
+
 export function computeStats(trade) {
   const execs = parseExecs(trade);
   const side = trade.side;
@@ -41,7 +55,8 @@ export function computeStats(trade) {
   const avgEntry = avgPrice(entryFills);
   const avgExit  = avgPrice(exitFills);
   const totalQty = entryFills.reduce((s, f) => s + (f.qty || 0), 0);
-  const adjustedCost = avgEntry ? avgEntry * totalQty : null;
+  const multiplier = tradeMultiplier(trade, avgEntry, avgExit, totalQty);
+  const adjustedCost = avgEntry ? avgEntry * totalQty * multiplier : null;
   const netRoi = adjustedCost ? (trade.net_pnl / adjustedCost * 100) : null;
 
   // Sort by full date+time (not time alone) so multi-day trades order correctly.
@@ -84,7 +99,8 @@ export function computeStats(trade) {
   const isClosed = exitFills.length > 0;
   const isWin = (trade.net_pnl || 0) > 0;
 
-  return { avgEntry, avgExit, totalQty, adjustedCost, netRoi, openTime, closeTime, openDate, closeDate, holdMinutes, fmtHold, isClosed, isWin, entryFills, exitFills };
+  return {
+    multiplier, avgEntry, avgExit, totalQty, adjustedCost, netRoi, openTime, closeTime, openDate, closeDate, holdMinutes, fmtHold, isClosed, isWin, entryFills, exitFills };
 }
 
 // ── Stat row helper ────────────────────────────────────────────────────────────
@@ -501,6 +517,8 @@ export default function TradeDetail({ trade: initialTrade, tradeNavList = [], on
 
   // ── Computed values ───────────────────────────────────────────────────────
 
+  const [, setPointValuesReady] = useState(false);
+  useEffect(() => { let alive = true; loadPointValues().then(() => { if (alive) setPointValuesReady(true); }); return () => { alive = false; }; }, []);
   const stats = computeStats(trade);
 
   useEffect(() => {
@@ -519,7 +537,7 @@ export default function TradeDetail({ trade: initialTrade, tradeNavList = [], on
   const riskPerShare = analysis?.stop_loss && stats.avgEntry
     ? Math.abs(stats.avgEntry - analysis.stop_loss) : null;
   const tradeRisk = riskPerShare && stats.totalQty
-    ? -(riskPerShare * stats.totalQty) : analysis?.risk_per_trade ? -Math.abs(analysis.risk_per_trade) : null;
+    ? -(riskPerShare * stats.totalQty * stats.multiplier) : analysis?.risk_per_trade ? -Math.abs(analysis.risk_per_trade) : null;
   const plannedR  = analysis?.risk_reward ? `${Number(analysis.risk_reward).toFixed(2)}R` : null;
   const realizedR = analysis?.r_multiple != null ? `${Number(analysis.r_multiple).toFixed(2)}R` : null;
 
@@ -550,7 +568,7 @@ export default function TradeDetail({ trade: initialTrade, tradeNavList = [], on
         subtitle={<>
           <span className="num">{trade.date}</span>
           {' / '}{trade.instrument_type ? trade.instrument_type.charAt(0) + trade.instrument_type.slice(1).toLowerCase() : 'Stock'}
-          {' / '}{trade.side === 'LONG' ? 'Long' : trade.side === 'SHORT' ? 'Short' : trade.side}
+          {' / '}<span title={sideInfo(trade).title}>{sideLabel(trade)}</span>
           {stats.openTime && <> · Opened <span className="num">{stats.openTime.slice(0, 5)}</span></>}
           {stats.closeTime && stats.isClosed && <> · Closed <span className="num">{stats.closeTime.slice(0, 5)}</span></>}
           {stats.holdMinutes != null && <> · Held <span className="num">{stats.fmtHold(stats.holdMinutes)}</span></>}
@@ -581,7 +599,7 @@ export default function TradeDetail({ trade: initialTrade, tradeNavList = [], on
       >
         {tab !== 'Exits' && <DemoLabel show={trade.source === 'demo'} />}
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-          <span className="chip">{trade.side}</span>
+          <span className="chip" title={sideInfo(trade).title}>{sideLabel(trade).toUpperCase()}</span>
           <span className="chip">{stats.isClosed ? 'Closed' : 'Open'}</span>
           {stats.isClosed && (
             <span className={`chip ${stats.isWin ? 'pos' : 'neg'}`}>{stats.isWin ? 'Win' : 'Loss'}</span>
@@ -689,7 +707,7 @@ export default function TradeDetail({ trade: initialTrade, tradeNavList = [], on
                   )}
                 </div>
 
-                <StatRow label="Side" value={trade.side} />
+                <StatRow label="Side" value={sideInfo(trade).mechanics ? `${sideLabel(trade)}, ${sideInfo(trade).mechanics.toLowerCase()}` : sideLabel(trade)} />
                 <StatRow label="Stocks traded" value={stats.totalQty || '—'} />
                 <StatRow label="Commissions & Fees" value={trade.commissions ? fmt$(trade.commissions) : '—'} />
                 <StatRow label="Net ROI" value={stats.netRoi != null ? `${stats.netRoi >= 0 ? '+' : ''}${stats.netRoi.toFixed(2)}%` : '—'} valueColor={stats.netRoi != null ? (stats.netRoi >= 0 ? 'var(--green)' : 'var(--red)') : undefined} />
